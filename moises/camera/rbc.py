@@ -1,6 +1,9 @@
 import cv2
 import numpy as np
 
+AR = [350, 265] # area vermelha
+AB = [350, 480] # area preta
+
 def cap_frame():
     cap = cv2.VideoCapture(0)
     
@@ -85,10 +88,23 @@ def find_black_temp(gray):
                 rets.append((x,y))
     return rets
 
-def get_caps():
+def get_caps(area):
     gray = cap_frame()
     vetor = []
     vetor.append({"red": find_red_temp(gray)})
     vetor.append({"black": find_black_temp(gray)})
-    return vetor
-
+    if area == 0:
+        for p in vetor["black"]:
+            if p[0] <= AR[0] and p[1] <= AR[1] and p[1] > AB[1]:
+                return p
+        for p in vetor["red"]:
+            if p[0] <= AR[0] and p[1] <= AR[1] and p[1] > AB[1] and p[1] > 60:
+                return p
+    else:
+        for p in vetor["red"]:
+            if p[0] <= AB[0] and p[1] <= AB[1] and p[1] > AR[1]:
+                return p
+        for p in vetor["black"]:
+            if p[0] <= AB[0] and p[1] <= (AB[1]-60) and p[1] > AR[1]:
+                return p
+    return None

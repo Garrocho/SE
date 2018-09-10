@@ -8,14 +8,15 @@ def new_client(conn, addr):
     while True:
         data = conn.recv(BUFFER_SIZE)
         if not data: break
+
         print "received data:", data
     
         MUTEX.acquire()
-        caps = rbc.get_caps()
+        ponto = rbc.get_caps(data)
         MUTEX.release()
-        
-        print "received data:", data
-        conn.send(caps)  # echo
+        if ponto == None:
+            ponto = (0, 0)
+        conn.send(str(ponto[0]) + " " + str(ponto[1]) + " 0")
 
     conn.close()
 
