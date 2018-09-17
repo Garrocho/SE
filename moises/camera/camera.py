@@ -1,26 +1,29 @@
 import cv2
 import numpy as np
 
-AR = [350, 265] # area vermelha
-AB = [350, 480] # area preta
-
-def cap_frame():
+def open_cap():
     cap = cv2.VideoCapture(0)
     
     #Setting Camera Resolution
     cap.set(3, 640)
     cap.set(4, 480)
     
+    return cap
+    
+def cap_frame(cap):
+    
     # Capture frame
     for i in range(0,20):
         ret, frame = cap.read()
     
     img = cv2.GaussianBlur(frame,(75,75),3)
-    img = frame[:,200:550]
+    #img = frame[:,200:550]
+    img = frame[45:460,200:500]
     img = cv2.bilateralFilter(img,15,75,75)
     
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    cap.release()
+    
+    #cv2.imwrite('Foto1.png', gray)
     
     return gray
     
@@ -41,20 +44,23 @@ def find_red_temp(gray):
     rets = []
     for (x, y) in zip(match_locations[1], match_locations[0]):
         ok = False
-        if len(rets) == 0:
+        if len(rets) == 0  and y < 235:
             rets.append((x,y))
         else:
             ok = False
             for i in rets:
                 rx = abs(i[0]-x)
                 ry = abs(i[1]-y)
-                if rx > 15 and ry > 15:
+                if rx > 15 and ry > 15 and y < 235:
                     ok = True
                 else:
                     ok = False
             if ok:
                 rets.append((x,y))
-    return rets
+    if len(rets) > 0:
+        return str(rets[0][0]) + ' ' + str(rets[0][1]) + ' 0'
+    else:
+        return '0 0 0'
                 
 def find_black_temp(gray):
     
@@ -73,38 +79,37 @@ def find_black_temp(gray):
     rets = []
     for (x, y) in zip(match_locations[1], match_locations[0]):
         ok = False
-        if len(rets) == 0:
+        if len(rets) == 0  and y > 175:
             rets.append((x,y))
         else:
             ok = False
             for i in rets:
                 rx = abs(i[0]-x)
                 ry = abs(i[1]-y)
-                if rx > 15 and ry > 15:
+                if rx > 15 and ry > 15 and y > 175:
                     ok = True
                 else:
                     ok = False
             if ok:
                 rets.append((x,y))
-    return rets
-
-def get_caps(area):
-    gray = cap_frame()
-    vetor = []
-    vetor.append({"red": find_red_temp(gray)})
-    vetor.append({"black": find_black_temp(gray)})
-    if area == 0:
-        for p in vetor["black"]:
-            if p[0] <= AR[0] and p[1] <= AR[1] and p[1] > AB[1]:
-                return p
-        for p in vetor["red"]:
-            if p[0] <= AR[0] and p[1] <= AR[1] and p[1] > AB[1] and p[1] > 60:
-                return p
+    if len(rets) > 0:
+        return str(rets[0][0]) + ' ' + str(rets[0][1]) + ' 0'
     else:
-        for p in vetor["red"]:
-            if p[0] <= AB[0] and p[1] <= AB[1] and p[1] > AR[1]:
-                return p
-        for p in vetor["black"]:
-            if p[0] <= AB[0] and p[1] <= (AB[1]-60) and p[1] > AR[1]:
-                return p
-    return None
+        return '0 0 0'
+
+def get_caps(cap):
+    gray = cap_frame(cap)
+    red = find_red_temp(gray)
+    black = find_black_temp(gray)
+    return red, black
+
+cap = open_cap()
+
+while True:
+    red, black = get_caps(cap)
+    file = open("caps.txt", "wb")
+    file.write(red + '(8*8)' + black)
+    file.close()
+    print 'Get Caps...', red, black
+
+cap.release()
