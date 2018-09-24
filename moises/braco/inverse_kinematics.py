@@ -6,27 +6,31 @@ import socket
 from time import time
 
 TCP_IP = '127.0.0.1'
-TCP_PORT = 6666
-BUFFER_SIZE = 512
+TCP_PORT = 6670
+BUFFER_SIZE = 1024
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.bind((TCP_IP, TCP_PORT))
 s.listen(1)
+
+q_min = np.array([[-84.0*np.pi/180.0], [17.0*np.pi/180.0], [-90.0*np.pi/180.0], [-90.0*np.pi/180.0]])
+q_max = np.array([[66.0*np.pi/180.0], [159.0*np.pi/180.0], [0.0*np.pi/180.0], [-45.0*np.pi/180.0]])
 
 while True:
     conn, addr = s.accept()
     data = conn.recv(BUFFER_SIZE)
     if not data:
         continue
-    coords = data.split(' ')
+    coords = data.decode('ascii').split(' ')
     length = len(coords)
     if length != 3:
         print('Wrong Format! Coords has length equal to {}, its length must be equal to 3'.format(length))
         conn.send('-1')
         conn.close()
         continue
-    coords = [float(c) for c in coords]
-    a = np.array([[7.9], [10.2], [9.7], [12.1]])
+    coords = [float(c.replace('\x00', '')) for c in coords]
+    print(coords)
+    a = np.array([[6.9], [10.5], [7.6], [14.5]])
     q = np.array([[0], [0], [-90], [0]])
     q = np.deg2rad(q)
     xd = np.array([[coords[0]], [coords[1]], [coords[2]]])
@@ -63,12 +67,14 @@ while True:
         q_d = np.matmul(Jps.astype(float), xd_d.astype(float) +
                         np.matmul(K.astype(float), e.astype(float)))
         q = q + q_d
-        q[q > np.pi / 2] = np.pi / 2
-        q[q < -np.pi / 2] = -np.pi / 2
+        for i in range(len(q)):
+            q[i, 0] = q_min[i, 0] if q[i, 0] < q_min[i, 0] else q[i, 0]
+            q[i, 0] = q_max[i, 0] if q[i, 0] > q_max[i, 0] else q[i, 0]
     dt = time() - t0
     q = np.rad2deg(q)
     print(q)
+    print(e_abs)
     print(dt)
     result = ' '.join([angle[0].astype(str) for angle in q])
-    conn.send(result)
+    conn.send(result.encode('utf-8'))
     conn.close()
