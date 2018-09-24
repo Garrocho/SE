@@ -2,4 +2,4 @@
 Projetos de Sistemas Embutidos
 
 ### Moisés
-Braço Robótico
+Braço Robótico e Câmera
