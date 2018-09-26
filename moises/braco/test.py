@@ -8,7 +8,7 @@ from time import time
 if len(sys.argv) > 1:
     coords = ' '.join(sys.argv[1:])
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect(("127.0.0.1", 6668))
+    s.connect(("127.0.0.1", 6670))
     t0 = time()
     s.send(coords.encode('ascii'))
     response = s.recv(512)

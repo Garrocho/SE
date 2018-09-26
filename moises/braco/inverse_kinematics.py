@@ -13,8 +13,16 @@ s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.bind((TCP_IP, TCP_PORT))
 s.listen(1)
 
-q_min = np.array([[-84.0*np.pi/180.0], [17.0*np.pi/180.0], [-90.0*np.pi/180.0], [-90.0*np.pi/180.0]])
-q_max = np.array([[66.0*np.pi/180.0], [159.0*np.pi/180.0], [0.0*np.pi/180.0], [-45.0*np.pi/180.0]])
+# Link lengths
+a = np.array([[6.9], [10.5], [7.6], [14.5]])
+# Link displacements
+d = np.array([[3.0], [0.0], [2.0]])
+# Mechanical limits
+q_min = np.array([[-84.0 * np.pi / 180.0], [17.0 * np.pi / 180.0],
+                  [-90.0 * np.pi / 180.0], [-90.0 * np.pi / 180.0]])
+q_max = np.array([[66.0 * np.pi / 180.0], [159.0 * np.pi / 180.0],
+                  [0.0 * np.pi / 180.0], [-45.0 * np.pi / 180.0]])
+
 
 while True:
     conn, addr = s.accept()
@@ -30,43 +38,52 @@ while True:
         continue
     coords = [float(c.replace('\x00', '')) for c in coords]
     print(coords)
-    a = np.array([[6.9], [10.5], [7.6], [14.5]])
+    # Initial joint configuration
     q = np.array([[0], [0], [-90], [0]])
     q = np.deg2rad(q)
+    # Expected end-effector coordinates
     xd = np.array([[coords[0]], [coords[1]], [coords[2]]])
-    # pois xd é constante (não é uma trajetória)
+    # Expected end-effector velocities
     xd_d = np.array([[0], [0], [0]])
     e_abs = 100000
     count = 0
     t0 = time()
     while True:
         count += 1
+        # Direct kinematics
         xe = np.array([
-            [a[1, 0] * np.cos(q[0, 0]) * np.cos(q[1, 0]) + a[2, 0] * np.cos(q[0, 0]) *
-             np.cos(q[1, 0] + q[2, 0]) + a[3, 0] * np.cos(q[0, 0]) * np.cos(q[1, 0] + q[2, 0] + q[3, 0])],
-            [a[1, 0] * np.sin(q[0, 0]) * np.cos(q[1, 0]) + a[2, 0] * np.sin(q[0, 0]) *
-             np.cos(q[1, 0] + q[2, 0]) + a[3, 0] * np.sin(q[0, 0]) * np.cos(q[1, 0] + q[2, 0] + q[3, 0])],
-            [a[0, 0] + a[1, 0] * np.sin(q[1, 0]) + a[2, 0] * np.sin(q[1, 0] +
-                                                                    q[2, 0]) + a[3, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0])]
+            [d[0, 0] * np.cos(q[0, 0]) + a[1, 0] * np.cos(q[0, 0]) * np.cos(q[1, 0]) + a[2, 0] * np.cos(q[0, 0]) * np.cos(q[1, 0] + q[2, 0]) + d[2, 0]
+             * np.cos(q[0, 0]) * np.cos(q[1, 0] + q[2, 0] + q[3, 0] + np.pi / 2) + a[3, 0] * np.cos(q[0, 0]) * np.cos(q[1, 0] + q[2, 0] + q[3, 0])],
+            [d[0, 0] * np.sin(q[0, 0]) + d[2, 0] * np.sin(q[0, 0]) * np.cos(q[1, 0] + q[2, 0] + q[3, 0] + np.pi / 2) + a[1, 0] * np.sin(q[0, 0]) * np.cos(
+                q[1, 0]) + a[2, 0] * np.sin(q[0, 0]) * np.cos(q[1, 0] + q[2, 0]) + a[3, 0] * np.sin(q[0, 0]) * np.cos(q[1, 0] + q[2, 0] + q[3, 0])],
+            [a[0, 0] + a[1, 0] * np.sin(q[1, 0]) + a[2, 0] * np.sin(q[1, 0] + q[2, 0]) + d[2, 0] * np.sin(
+                q[1, 0] + q[2, 0] + q[3, 0] + np.pi / 2) + a[3, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0])]
         ])
+        # Position error
         e = xd - xe
+        # Euclidean distance
         e_abs = np.sqrt(np.sum(e ** 2))
         if e_abs <= 1e-2 or count >= 1000:
             break
+        # Controller gain matrix
         K = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+        # Jacobian
         J = np.array([
-            [-np.sin(q[0, 0]) * (a[1, 0] * np.cos(q[1, 0]) + a[2, 0] * np.cos(q[1, 0] + q[2, 0]) + a[3, 0] * np.cos(q[1, 0] + q[2, 0] + q[3, 0])), -np.cos(q[0, 0]) * (a[1, 0] * np.sin(q[1, 0]) + a[2, 0] * np.sin(q[1, 0] + q[2, 0]) +
-                                                                                                                                                                       a[3, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0])), -np.cos(q[0, 0]) * (a[2, 0] * np.sin(q[1, 0] + q[2, 0]) + a[3, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0])), -np.cos(q[0, 0]) * (a[3, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0]))],
-            [np.cos(q[0, 0]) * (a[1, 0] * np.cos(q[1, 0]) + a[2, 0] * np.cos(q[1, 0] + q[2, 0]) + a[3, 0] * np.cos(q[1, 0] + q[2, 0] + q[3, 0])), -np.sin(q[0, 0]) * (a[1, 0] * np.sin(q[1, 0]) + a[2, 0] * np.sin(q[1, 0] + q[2, 0]) +
-                                                                                                                                                                      a[3, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0])), -np.sin(q[0, 0]) * (a[2, 0] * np.sin(q[1, 0] + q[2, 0]) + a[3, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0])), -np.sin(q[0, 0]) * (a[3, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0]))],
-            [0,  a[1, 0] * np.cos(q[1, 0]) + a[2, 0] * np.cos(q[1, 0] + q[2, 0]) + a[3, 0] * np.cos(q[1, 0] + q[2, 0] + q[3, 0]),  a[2, 0]
-             * np.cos(q[1, 0] + q[2, 0]) + a[3, 0] * np.cos(q[1, 0] + q[2, 0] + q[3, 0]), a[3, 0] * np.cos(q[1, 0] + q[2, 0] + q[3, 0])],
+            [-np.sin(q[0, 0]) * (d[0, 0] + a[1, 0] * np.cos(q[1, 0]) + a[2, 0] * np.cos(q[1, 0] + q[2, 0]) + d[2, 0] * np.cos(q[1, 0] + q[2, 0] + q[3, 0] + np.pi / 2) + a[3, 0] * np.cos(q[1, 0] + q[2, 0] + q[3, 0])), -np.cos(q[0, 0]) * (a[1, 0] * np.sin(q[1, 0]) + a[2, 0] * np.sin(q[1, 0] + q[2, 0]) + d[2, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0] + np.pi / 2) + a[3, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0])), -np.cos(q[0, 0]) * (a[2, 0] * np.sin(q[1, 0] + q[2, 0]) + d[2, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0] + np.pi / 2) + a[3, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0])), -np.cos(q[0, 0]) * (d[2, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0] + np.pi / 2) + a[3, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0]))],
+            [np.cos(q[0, 0]) * (d[0, 0] + a[1, 0] * np.cos(q[1, 0]) + a[2, 0] * np.cos(q[1, 0] + q[2, 0]) + d[2, 0] * np.cos(q[1, 0] + q[2, 0] + q[3, 0] + np.pi / 2) + a[3, 0] * np.cos(q[1, 0] + q[2, 0] + q[3, 0])), -np.sin(q[0, 0]) * (a[1, 0] * np.sin(q[1, 0]) + a[2, 0] * np.sin(q[1, 0] + q[2, 0]) + d[2, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0] + np.pi / 2) + a[3, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0])), -np.sin(q[0, 0]) * (a[2, 0] * np.sin(q[1, 0] + q[2, 0]) + d[2, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0] + np.pi / 2) + a[3, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0])), -np.sin(q[0, 0]) * (d[2, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0] + np.pi / 2) + a[3, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0]))],
+            [0,  a[1, 0] * np.cos(q[1, 0]) + a[2, 0] * np.cos(q[1, 0] + q[2, 0]) + d[2, 0] * np.cos(q[1, 0] + q[2, 0] + q[3, 0] + np.pi / 2) + a[3, 0] * np.cos(q[1, 0] + q[2, 0] + q[3, 0]),  a[2, 0] * np.cos(q[1, 0] + q[2, 0]) + d[2, 0] * np.cos(q[1, 0] + q[2, 0] + q[3, 0] + np.pi / 2) + a[3, 0] * np.cos(q[1, 0] + q[2, 0] + q[3, 0]), d[2, 0] * np.cos(q[1, 0] + q[2, 0] + q[3, 0] + np.pi / 2) + a[3, 0] * np.cos(q[1, 0] + q[2, 0] + q[3, 0])],
         ])
+        # Jacobian's pseudo-inverse
         Jps = np.matmul(J.transpose().astype(float),
-                        np.linalg.inv(np.matmul(J.astype(float), J.transpose().astype(float))))
+                        np.linalg.inv(
+                        np.matmul(J.astype(float), J.transpose().astype(float))
+                        ))
+        # Joint velocities
         q_d = np.matmul(Jps.astype(float), xd_d.astype(float) +
                         np.matmul(K.astype(float), e.astype(float)))
+        # New joint configuration
         q = q + q_d
+        # Mechanical limits verification
         for i in range(len(q)):
             q[i, 0] = q_min[i, 0] if q[i, 0] < q_min[i, 0] else q[i, 0]
             q[i, 0] = q_max[i, 0] if q[i, 0] > q_max[i, 0] else q[i, 0]
