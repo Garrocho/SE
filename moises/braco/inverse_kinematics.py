@@ -14,14 +14,16 @@ s.bind((TCP_IP, TCP_PORT))
 s.listen(1)
 
 # Link lengths
-a = np.array([[6.9], [10.5], [7.6], [14.5]])
+a = np.array([[6.9], [10.5], [7.6], [14.5]], dtype=float)
 # Link displacements
-d = np.array([[3.0], [0.0], [2.0]])
+d = np.array([[3.0], [0.0], [2.0]], dtype=float)
 # Mechanical limits
 q_min = np.array([[-84.0 * np.pi / 180.0], [17.0 * np.pi / 180.0],
-                  [-90.0 * np.pi / 180.0], [-90.0 * np.pi / 180.0]])
+                  [-90.0 * np.pi / 180.0], [-90.0 * np.pi / 180.0]],
+                 dtype=float)
 q_max = np.array([[66.0 * np.pi / 180.0], [159.0 * np.pi / 180.0],
-                  [0.0 * np.pi / 180.0], [-45.0 * np.pi / 180.0]])
+                  [0.0 * np.pi / 180.0], [-45.0 * np.pi / 180.0]],
+                 dtype=float)
 
 
 while True:
@@ -29,7 +31,7 @@ while True:
     data = conn.recv(BUFFER_SIZE)
     if not data:
         continue
-    coords = data.decode('ascii').split(' ')
+    coords = data.decode('utf-8').split(' ')
     length = len(coords)
     if length != 3:
         print('Wrong Format! Coords has length equal to {}, its length must be equal to 3'.format(length))
@@ -39,12 +41,12 @@ while True:
     coords = [float(c.replace('\x00', '')) for c in coords]
     print(coords)
     # Initial joint configuration
-    q = np.array([[0], [0], [-90], [0]])
+    q = np.array([[0], [0], [-90], [0]], dtype=float)
     q = np.deg2rad(q)
     # Expected end-effector coordinates
-    xd = np.array([[coords[0]], [coords[1]], [coords[2]]])
+    xd = np.array([[coords[0]], [coords[1]], [coords[2]]], dtype=float)
     # Expected end-effector velocities
-    xd_d = np.array([[0], [0], [0]])
+    xd_d = np.array([[0], [0], [0]], dtype=float)
     e_abs = 100000
     count = 0
     t0 = time()
@@ -58,7 +60,7 @@ while True:
                 q[1, 0]) + a[2, 0] * np.sin(q[0, 0]) * np.cos(q[1, 0] + q[2, 0]) + a[3, 0] * np.sin(q[0, 0]) * np.cos(q[1, 0] + q[2, 0] + q[3, 0])],
             [a[0, 0] + a[1, 0] * np.sin(q[1, 0]) + a[2, 0] * np.sin(q[1, 0] + q[2, 0]) + d[2, 0] * np.sin(
                 q[1, 0] + q[2, 0] + q[3, 0] + np.pi / 2) + a[3, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0])]
-        ])
+        ], dtype=float)
         # Position error
         e = xd - xe
         # Euclidean distance
@@ -66,21 +68,18 @@ while True:
         if e_abs <= 1e-2 or count >= 1000:
             break
         # Controller gain matrix
-        K = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+        K = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=float)
         # Jacobian
         J = np.array([
             [-np.sin(q[0, 0]) * (d[0, 0] + a[1, 0] * np.cos(q[1, 0]) + a[2, 0] * np.cos(q[1, 0] + q[2, 0]) + d[2, 0] * np.cos(q[1, 0] + q[2, 0] + q[3, 0] + np.pi / 2) + a[3, 0] * np.cos(q[1, 0] + q[2, 0] + q[3, 0])), -np.cos(q[0, 0]) * (a[1, 0] * np.sin(q[1, 0]) + a[2, 0] * np.sin(q[1, 0] + q[2, 0]) + d[2, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0] + np.pi / 2) + a[3, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0])), -np.cos(q[0, 0]) * (a[2, 0] * np.sin(q[1, 0] + q[2, 0]) + d[2, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0] + np.pi / 2) + a[3, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0])), -np.cos(q[0, 0]) * (d[2, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0] + np.pi / 2) + a[3, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0]))],
             [np.cos(q[0, 0]) * (d[0, 0] + a[1, 0] * np.cos(q[1, 0]) + a[2, 0] * np.cos(q[1, 0] + q[2, 0]) + d[2, 0] * np.cos(q[1, 0] + q[2, 0] + q[3, 0] + np.pi / 2) + a[3, 0] * np.cos(q[1, 0] + q[2, 0] + q[3, 0])), -np.sin(q[0, 0]) * (a[1, 0] * np.sin(q[1, 0]) + a[2, 0] * np.sin(q[1, 0] + q[2, 0]) + d[2, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0] + np.pi / 2) + a[3, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0])), -np.sin(q[0, 0]) * (a[2, 0] * np.sin(q[1, 0] + q[2, 0]) + d[2, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0] + np.pi / 2) + a[3, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0])), -np.sin(q[0, 0]) * (d[2, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0] + np.pi / 2) + a[3, 0] * np.sin(q[1, 0] + q[2, 0] + q[3, 0]))],
             [0,  a[1, 0] * np.cos(q[1, 0]) + a[2, 0] * np.cos(q[1, 0] + q[2, 0]) + d[2, 0] * np.cos(q[1, 0] + q[2, 0] + q[3, 0] + np.pi / 2) + a[3, 0] * np.cos(q[1, 0] + q[2, 0] + q[3, 0]),  a[2, 0] * np.cos(q[1, 0] + q[2, 0]) + d[2, 0] * np.cos(q[1, 0] + q[2, 0] + q[3, 0] + np.pi / 2) + a[3, 0] * np.cos(q[1, 0] + q[2, 0] + q[3, 0]), d[2, 0] * np.cos(q[1, 0] + q[2, 0] + q[3, 0] + np.pi / 2) + a[3, 0] * np.cos(q[1, 0] + q[2, 0] + q[3, 0])],
-        ])
+        ], dtype=float)
         # Jacobian's pseudo-inverse
-        Jps = np.matmul(J.transpose().astype(float),
-                        np.linalg.inv(
-                        np.matmul(J.astype(float), J.transpose().astype(float))
-                        ))
+        Jps = np.matmul(J.transpose(),
+                        np.linalg.inv(np.matmul(J, J.transpose())))
         # Joint velocities
-        q_d = np.matmul(Jps.astype(float), xd_d.astype(float) +
-                        np.matmul(K.astype(float), e.astype(float)))
+        q_d = np.matmul(Jps, xd_d + np.matmul(K, e))
         # New joint configuration
         q = q + q_d
         # Mechanical limits verification
