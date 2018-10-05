@@ -21,7 +21,7 @@
 #include <netinet/in.h>
 #include <netdb.h> 
 
-#define SERV_ADDR "192.168.0.153"
+#define SERV_ADDR "192.168.0.149"
 #define PORT 5005    /* the port client will be connecting to */
 #define BUFSIZE 1024
 
@@ -33,7 +33,10 @@
 #define PI 3.14159265
 
 int signalstop = 0;
-int pulse_1, pulse_2 = 2100, pulse_3 = 600, pulse_4 = 1300, pulse_5 = 1125, pulse_6 = 1662;
+int pulse_1, pulse_2 = 2100, pulse_3 = 900, pulse_4 = 2300, pulse_5 = 1800, pulse_6 = 1800;
+
+float delta = 0;
+
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // function declarations
@@ -178,7 +181,7 @@ void signaltool(int open)
 		for (int i = 0; i < 50; i++)
 		{
 			// rc_servo_send_pulse_us(1,2800);
-			rc_servo_send_pulse_us(1, 2200);
+			rc_servo_send_pulse_us(1, 2500);
 			rc_usleep(15000);
 		}
 	}
@@ -188,14 +191,14 @@ float get_xcm(float y)
 {
 	float x_px, x_cm;
 	x_px = 415 - y;
-	x_cm = x_px/12.0 + 12.34 - 1.423;
+	x_cm = x_px/12.0 + 12.34 - 1.423 + 0.5 + 0.25;
 }
 
 float get_ycm(float x)
 {
 	float y_px, y_cm;
 	y_px = 300 - x;
-	y_cm = y_px/12.0 - 10.5 + 1.1667;
+	y_cm = y_px/12.0 - 10.5 + 1.1667 + 1.5 - 2.250 + 0.333 - 0.5;
 }
 
 /*Brute force inverse kinematics*/
@@ -233,7 +236,7 @@ moveInvKin(float x, float y, float z)
 	move(a3topulse(a3), a4topulse(a4), a5topulse(a5), a6topulse(a6));
 }
 
-serverInvKin(float x, float y, float z)
+void serverInvKin(float x, float y, float z)
 {
 	int sockfd, numbytes;  
     char buf[BUFSIZE_INV];
@@ -285,6 +288,109 @@ serverInvKin(float x, float y, float z)
 	close(sockfd);		
 }
 
+void showInvKin(float x, float y, float z)
+{
+	int sockfd, numbytes;  
+    char buf[BUFSIZE_INV];
+    struct hostent *he;
+    struct sockaddr_in their_addr; /* connector's address information */
+    
+    if ((he=gethostbyname(SERV_ADDR_INV)) == NULL) {  /* get the host info */
+        herror("gethostbyname");
+        exit(1);
+    }
+    
+    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+        perror("socket");
+        exit(1);
+	}
+	
+	their_addr.sin_family = AF_INET;      /* host byte order */
+    their_addr.sin_port = htons(PORT_INV);    /* short, network byte order */
+    their_addr.sin_addr = *((struct in_addr *)he->h_addr);
+    bzero(&(their_addr.sin_zero), 8);     /* zero the rest of the struct */
+    
+    if (connect(sockfd, (struct sockaddr *)&their_addr, sizeof(struct sockaddr)) == -1) {
+        perror("connect");
+        exit(1);
+	}
+	
+	char eixos[100];
+	for(int i = 0; i < 100; i++) eixos[i] = '\0';
+	sprintf(eixos, "%.3f %.3f %.3f", x, y, z);
+    if (send(sockfd, eixos,  BUFSIZE_INV, 0) == -1){
+    	perror("send");
+    	exit (1);
+	}
+	if ((numbytes=recv(sockfd, buf, BUFSIZE_INV, 0)) == -1) {
+		perror("recv");
+		exit(1);
+	}	
+
+    buf[numbytes] = '\0';
+    float a3, a4, a5, a6;
+    
+
+	printf("Angulos = %s \n", buf);
+	sscanf(buf, "%f %f %f %f", &a6, &a5, &a4, &a3);
+	
+	
+	close(sockfd);		
+}
+
+void showTargetPosition() {
+	float x, y, z;
+	int sockfd, numbytes;  
+    char buf[BUFSIZE];
+    struct hostent *he;
+    struct sockaddr_in their_addr; /* connector's address information */
+    
+    if ((he=gethostbyname(SERV_ADDR)) == NULL) {  /* get the host info */
+        herror("gethostbyname");
+        exit(1);
+    }
+    
+    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+        perror("socket");
+        exit(1);
+	}
+	
+	their_addr.sin_family = AF_INET;      /* host byte order */
+    their_addr.sin_port = htons(PORT);    /* short, network byte order */
+    their_addr.sin_addr = *((struct in_addr *)he->h_addr);
+    bzero(&(their_addr.sin_zero), 8);     /* zero the rest of the struct */
+    
+    if (connect(sockfd, (struct sockaddr *)&their_addr, sizeof(struct sockaddr)) == -1) {
+        perror("connect");
+        exit(1);
+	}
+	
+	if (send(sockfd, "1", 14, 0) == -1){ // "1" peça preta, "0" peça vermelha 
+    	perror("send");
+    	exit (1);
+	}
+	printf("After the send function \n");
+	if ((numbytes=recv(sockfd, buf, BUFSIZE, 0)) == -1) {
+    		perror("recv");
+    		exit(1);
+	}	
+
+    buf[numbytes] = '\0';
+    
+
+	sscanf(buf, "%f %f %f", &x, &y, &z);
+	close(sockfd);
+	
+	x = x+32;
+	y = y+32;
+	float aux = x;
+	
+	x = get_xcm(y);
+	y = get_ycm(aux);
+	
+	printf("Peça = %.3f %.3f %.3f\n", x, y, z);
+}
+
 /*******************************************************************************
 * int main() 
 *
@@ -317,7 +423,7 @@ int main(){
 		float angle;
 		int opt;
 		
-		printf("Operações: \n1- Demo\n2- Abrir ferramenta\n3- Fechar ferramenta\n4- Restaurar posição de repouso\n\n0- Sair\n\n");
+		printf("Operações: \n1- Demo\n2- Abrir ferramenta\n3- Fechar ferramenta\n4- Restaurar posição de repouso\n5- Consultar posição da peça\n6- Consultar cinemática inversa\n\n0- Sair\n\n");
 		printf("Operação: ");
 		scanf("%d", &opt);
 		if (opt == 1)
@@ -329,17 +435,10 @@ int main(){
 				float dx, dy, dz;
 				//printf("Digite a posição X Y Z desejada, separada por espaços: ");
 				//scanf("%f %f %f", &dx, &dy, &dz);
-				dx = 23;
+				dx = 14;
+				dy = -15;
 				dz = 0;
 				
-				if (i % 2 == 0)
-				{
-					dy = -5;
-				}
-				else
-				{
-					dy = 0;
-				}
 				
 				int sockfd, numbytes;  
 		        char buf[BUFSIZE];
@@ -397,17 +496,77 @@ int main(){
 				rc_usleep(1000000);
 				signaltool(0);
 				restPos();
-				serverInvKin(dx, dy, dz);
+				serverInvKin(dx + delta, dy, dz);
 				rc_usleep(1000000);
 				signaltool(1);
 				restPos();
 				signaltool(0);
+				
+				delta += 5;
 			}
 		}
 		
 		else if (opt == 2) signaltool(1);
 		else if (opt == 3) signaltool(0);
-		else if (opt == 4) restPos();
+		else if (opt == 4) {
+			restPos();
+			delta = 0;
+		}
+		else if (opt == 5) showTargetPosition();
+		else if (opt == 6) 
+		{
+			float x, y, z;
+			int sockfd, numbytes;  
+	        char buf[BUFSIZE];
+	        struct hostent *he;
+	        struct sockaddr_in their_addr; /* connector's address information */
+	        
+	        if ((he=gethostbyname(SERV_ADDR)) == NULL) {  /* get the host info */
+	            herror("gethostbyname");
+	            exit(1);
+	        }
+            
+            if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+	            perror("socket");
+	            exit(1);
+        	}
+        	
+        	their_addr.sin_family = AF_INET;      /* host byte order */
+	        their_addr.sin_port = htons(PORT);    /* short, network byte order */
+	        their_addr.sin_addr = *((struct in_addr *)he->h_addr);
+	        bzero(&(their_addr.sin_zero), 8);     /* zero the rest of the struct */
+	        
+	        if (connect(sockfd, (struct sockaddr *)&their_addr, sizeof(struct sockaddr)) == -1) {
+	            perror("connect");
+	            exit(1);
+        	}
+        	
+        	if (send(sockfd, "1", 14, 0) == -1){ // "1" peça preta, "0" peça vermelha 
+            	perror("send");
+		    	exit (1);
+			}
+			if ((numbytes=recv(sockfd, buf, BUFSIZE, 0)) == -1) {
+            		perror("recv");
+            		exit(1);
+			}	
+
+	        buf[numbytes] = '\0';
+	        
+
+        	sscanf(buf, "%f %f %f", &x, &y, &z);
+			close(sockfd);
+			
+			x = x+32;
+			y = y+32;
+			float aux = x;
+			
+			x = get_xcm(y);
+			y = get_ycm(aux);
+			
+			printf("Peça = %.3f %.3f %.3f\n", x, y, z);
+			
+			showInvKin(x, y, z);	
+		}
 		else if (opt == 0) ext = 1;
 		else printf("Operação Inválida!\n");
 	}

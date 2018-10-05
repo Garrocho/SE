@@ -16,7 +16,7 @@ s.listen(1)
 # Link lengths
 a = np.array([[6.9], [10.5], [7.6], [14.5]], dtype=float)
 # Link displacements
-d = np.array([[3.0], [0.0], [2.0]], dtype=float)
+d = np.array([[2.0], [0.0], [3.0]], dtype=float)
 # Mechanical limits
 q_min = np.array([[-84.0 * np.pi / 180.0], [17.0 * np.pi / 180.0],
                   [-90.0 * np.pi / 180.0], [-90.0 * np.pi / 180.0]],
