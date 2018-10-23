@@ -26,7 +26,7 @@
 #define BUFSIZE 1024
 
 #define SERV_ADDR_INV "127.0.0.1"
-#define PORT_INV 6670    /* the port client will be connecting to */
+#define PORT_INV 6671    /* the port client will be connecting to */
 #define BUFSIZE_INV 100
 
 
@@ -35,7 +35,9 @@
 int signalstop = 0;
 int pulse_1, pulse_2 = 2100, pulse_3 = 900, pulse_4 = 2300, pulse_5 = 1800, pulse_6 = 1800;
 
-float delta = 0;
+float deltax = 0;
+float deltay = 0;
+float deltaz = 0;
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -90,12 +92,15 @@ void move(int pulse3, int pulse4, int pulse5, int pulse6)
 {
 	while (pulse_3 != pulse3 || pulse_4 != pulse4 || pulse_5 != pulse5 || pulse_6 != pulse6)
 	{
-		//for (int i = 0; i < 3; i++)
+		for (int i = 0; i < 2; i++)
 		{
 			if (pulse_5 < pulse5) move2pos(5, pulse_5 + 1);
-			else if (pulse_5 > pulse5) move2pos(5, pulse_5 - 1);
+			else break;
 			rc_usleep(400);
 		}
+		
+		if (pulse_5 > pulse5) move2pos(5, pulse_5 - 1);
+		rc_usleep(400);
 		
 		if (pulse_6 < pulse6) move2pos(6, pulse_6 + 1);
 		else if (pulse_6 > pulse6) move2pos(6, pulse_6 - 1);
@@ -130,7 +135,18 @@ int angle2pulse(float theta, float min_theta, float max_theta, float min_pulse, 
 
 int a6topulse(float angle)
 {
-	int output = angle2pulse(angle, -84, 66, 850, 2300);
+	int output = -1;
+	if (angle <= -15) output = angle2pulse(angle, -60, 0, 850, 1662);
+	else if (angle <= -11) output = angle2pulse(angle, -58, 0, 850, 1662);
+	else if (angle <= -9) output = angle2pulse(angle, -55, 0, 850, 1662);
+	else if (angle <= -4) output = angle2pulse(angle, -50, 0, 850, 1662);
+	else if (angle < 4 && angle > -4) output = angle2pulse(angle, -4, 4, 1600, 1722);
+	else if (angle >= 20) output = angle2pulse(angle, 0, 33, 1662, 2200);
+	else if (angle >= 15) output = angle2pulse(angle, 0, 30, 1662, 2200);
+	else if (angle >= 11) output = angle2pulse(angle, 0, 28, 1662, 2200);
+	else if (angle >= 4) output = angle2pulse(angle, 0, 25, 1662, 2200);
+	
+	
 	// if (output > 2150) output = 2150;
 	// else if (output < 1100) output = 1100;
 	return output;
@@ -171,8 +187,7 @@ void signaltool(int open)
 	{
 		for (int i = 0; i < 50; i++)
 		{
-			// rc_servo_send_pulse_us(1,1300);
-			rc_servo_send_pulse_us(1, 900);
+			rc_servo_send_pulse_us(1, 700);
 			rc_usleep(15000);
 		}
 	}
@@ -180,8 +195,7 @@ void signaltool(int open)
 	{
 		for (int i = 0; i < 50; i++)
 		{
-			// rc_servo_send_pulse_us(1,2800);
-			rc_servo_send_pulse_us(1, 2500);
+			rc_servo_send_pulse_us(1, 1200);
 			rc_usleep(15000);
 		}
 	}
@@ -191,14 +205,14 @@ float get_xcm(float y)
 {
 	float x_px, x_cm;
 	x_px = 415 - y;
-	x_cm = x_px/12.0 + 12.34 - 1.423 + 0.5 + 0.25;
+	x_cm = x_px/12.0 + 12.34 + 8;
 }
 
 float get_ycm(float x)
 {
 	float y_px, y_cm;
 	y_px = 300 - x;
-	y_cm = y_px/12.0 - 10.5 + 1.1667 + 1.5 - 2.250 + 0.333 - 0.5;
+	y_cm = y_px/12.0 - 10.5 - 1.5 + 0.5;
 }
 
 /*Brute force inverse kinematics*/
@@ -428,8 +442,7 @@ int main(){
 		scanf("%d", &opt);
 		if (opt == 1)
 		{
-			int i;
-			for (i = 0; i < 1; i++)
+			while (1)
 			{
 				float x, y, z;
 				float dx, dy, dz;
@@ -437,7 +450,7 @@ int main(){
 				//scanf("%f %f %f", &dx, &dy, &dz);
 				dx = 14;
 				dy = -15;
-				dz = 0;
+				dz = 8;
 				
 				
 				int sockfd, numbytes;  
@@ -481,12 +494,15 @@ int main(){
 	        	sscanf(buf, "%f %f %f", &x, &y, &z);
 				close(sockfd);
 				
+				if((int) x == -1) break;
+				
 				x = x+32;
 				y = y+32;
 				float aux = x;
 				
 				x = get_xcm(y);
 				y = get_ycm(aux);
+				z = 3;
 				
 				printf("Peça = %.3f %.3f %.3f\n", x, y, z);
 				
@@ -495,14 +511,22 @@ int main(){
 				serverInvKin(x, y, z);
 				rc_usleep(1000000);
 				signaltool(0);
+				signaltool(0);
 				restPos();
-				serverInvKin(dx + delta, dy, dz);
+				serverInvKin(dx + deltax, dy + deltay, dz + deltaz);
 				rc_usleep(1000000);
 				signaltool(1);
 				restPos();
-				signaltool(0);
 				
-				delta += 5;
+				deltax += 5;
+				if (deltax > 10) {
+					deltax = 0;
+					deltay -= 5;
+					deltaz += 5;
+					if (deltay < -5) deltay = 0;
+					if (deltaz > 5) deltaz = 0;
+				}
+					
 			}
 		}
 		
@@ -510,7 +534,9 @@ int main(){
 		else if (opt == 3) signaltool(0);
 		else if (opt == 4) {
 			restPos();
-			delta = 0;
+			deltax = 0;
+			deltay = 0;
+			deltaz = 0;
 		}
 		else if (opt == 5) showTargetPosition();
 		else if (opt == 6) 
