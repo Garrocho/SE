@@ -204,15 +204,17 @@ void signaltool(int open)
 float get_xcm(float y)
 {
 	float x_px, x_cm;
-	x_px = 415 - y;
-	x_cm = x_px/12.0 + 12.34 + 8;
+	x_px = y;
+	x_cm = x_px/11.0 + 10.5 + 1;
+	return x_cm;
 }
 
 float get_ycm(float x)
 {
 	float y_px, y_cm;
-	y_px = 300 - x;
-	y_cm = y_px/12.0 - 10.5 - 1.5 + 0.5;
+	y_px = x;
+	y_cm = y_px/11.0 - 15.91 - 2;
+	return y_cm;
 }
 
 /*Brute force inverse kinematics*/
@@ -395,8 +397,7 @@ void showTargetPosition() {
 	sscanf(buf, "%f %f %f", &x, &y, &z);
 	close(sockfd);
 	
-	x = x+32;
-	y = y+32;
+	
 	float aux = x;
 	
 	x = get_xcm(y);
@@ -448,8 +449,8 @@ int main(){
 				float dx, dy, dz;
 				//printf("Digite a posição X Y Z desejada, separada por espaços: ");
 				//scanf("%f %f %f", &dx, &dy, &dz);
-				dx = 14;
-				dy = -15;
+				dx = 10;
+				dy = -18;
 				dz = 8;
 				
 				
@@ -496,8 +497,7 @@ int main(){
 				
 				if((int) x == -1) break;
 				
-				x = x+32;
-				y = y+32;
+		
 				float aux = x;
 				
 				x = get_xcm(y);
@@ -518,14 +518,14 @@ int main(){
 				signaltool(1);
 				restPos();
 				
-				deltax += 5;
-				if (deltax > 10) {
-					deltax = 0;
-					deltay -= 5;
-					deltaz += 5;
-					if (deltay < -5) deltay = 0;
-					if (deltaz > 5) deltaz = 0;
-				}
+				// deltax += 5;
+				// if (deltax > 10) {
+				// 	deltax = 0;
+				// 	deltay -= 5;
+				// 	deltaz += 5;
+				// 	if (deltay < -5) deltay = 0;
+				// 	if (deltaz > 5) deltaz = 0;
+				// }
 					
 			}
 		}
@@ -582,8 +582,7 @@ int main(){
         	sscanf(buf, "%f %f %f", &x, &y, &z);
 			close(sockfd);
 			
-			x = x+32;
-			y = y+32;
+			
 			float aux = x;
 			
 			x = get_xcm(y);
